@@ -9,8 +9,10 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Copy app source
-COPY app.py planner.py config.yaml ./
+COPY src/ src/
+COPY config.yaml ./
 COPY static/ static/
 
+ENV PYTHONPATH=/app/src
 EXPOSE 8080
 CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
