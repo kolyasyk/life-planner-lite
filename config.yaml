@@ -1,0 +1,91 @@
+simulation:
+  start: 2026-01
+  end: 2060-12
+  initial_balance: 15000
+income:
+- name: Primary Salary
+  amount: 7000
+  frequency: monthly
+  start: 2026-01
+  growth_rate: 0.03
+- name: Side Freelance
+  amount: 1500
+  frequency: monthly
+  start: 2026-06
+  end: 2035-12
+- name: Annual Bonus
+  amount: 8000
+  frequency: annual
+  start: 2026-12
+  growth_rate: 0.02
+expenses:
+- name: Rent
+  amount: 2000
+  frequency: monthly
+  start: 2026-01
+  end: 2031-12
+- name: Mortgage
+  amount: 2400
+  frequency: monthly
+  start: 2032-01
+  end: 2062-01
+- name: Home Down Payment
+  amount: 50000
+  frequency: one-time
+  start: 2032-01
+- name: Groceries
+  amount: 600
+  frequency: monthly
+- name: Utilities & Internet
+  amount: 180
+  frequency: monthly
+- name: Car Payment
+  amount: 450
+  frequency: monthly
+  start: 2026-01
+  end: 2031-12
+- name: Car Insurance
+  amount: 130
+  frequency: monthly
+- name: Health Insurance
+  amount: 400
+  frequency: monthly
+- name: Entertainment & Dining
+  amount: 400
+  frequency: monthly
+- name: Annual Vacation
+  amount: 4000
+  frequency: annual
+  start: 2026-07
+- name: Quarterly Medical
+  amount: 500
+  frequency: quarterly
+  start: 2026-01
+investments:
+- name: 401(k)
+  initial_value: 25000
+  monthly_contribution: 800
+  apr: 0.07
+  start: 2026-01
+  end: 2050-01
+- name: Roth IRA
+  initial_value: 10000
+  monthly_contribution: 583
+  apr: 0.07
+  start: 2026-01
+  end: 2050-01
+- name: Brokerage Account
+  initial_value: 5000
+  monthly_contribution: 300
+  apr: 0.06
+  start: 2026-01
+  end: 2050-01
+retirement:
+  date: 2050-01
+  income:
+  - name: Social Security
+    amount: 2200
+    frequency: monthly
+  - name: Pension
+    amount: 1200
+    frequency: monthly
