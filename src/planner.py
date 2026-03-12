@@ -114,6 +114,15 @@ def simulate(config):
     expenses    = config.get("expenses", [])
     investments = config.get("investments", [])
 
+    # --- S&P 500 historical returns (loaded only if at least one investment needs it) ---
+    snp_returns = None
+    if any(inv.get("use_snp500") for inv in investments):
+        from snp500 import build_returns_sequence, default_historical_start
+        snp500_cfg      = config.get("snp500") or {}
+        historical_start = snp500_cfg.get("historical_start") or default_historical_start()
+        n_months        = ym_diff_months(start_ym, end_ym) + 1
+        snp_returns     = build_returns_sequence(historical_start, n_months)
+
     # Track current value of each investment account separately
     inv_values = [float(inv.get("initial_value", 0)) for inv in investments]
 
@@ -124,6 +133,7 @@ def simulate(config):
     all_incomes   = []
     all_expenses  = []
 
+    month_idx = 0
     ym = start_ym
     while ym <= end_ym:
         # --- Income ---
@@ -148,7 +158,10 @@ def simulate(config):
         # --- Investments: grow then contribute ---
         total_inv = 0.0
         for i, inv in enumerate(investments):
-            monthly_rate = (1 + float(inv.get("apr", 0))) ** (1 / 12) - 1
+            if inv.get("use_snp500") and snp_returns is not None:
+                monthly_rate = snp_returns[month_idx]
+            else:
+                monthly_rate = (1 + float(inv.get("apr", 0))) ** (1 / 12) - 1
             inv_values[i] *= (1 + monthly_rate)            # compound growth
             if is_active(inv, ym):
                 contrib = float(inv.get("monthly_contribution", 0))
@@ -165,6 +178,7 @@ def simulate(config):
         all_incomes.append(monthly_income)
         all_expenses.append(monthly_expenses)
 
+        month_idx += 1
         ym = ym_add(ym, 1)
 
     return months, balances, inv_totals, net_worths, all_incomes, all_expenses

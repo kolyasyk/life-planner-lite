@@ -64,6 +64,13 @@
           <label class="form-label">Initial Cash Balance ($)</label>
           <input type="number" class="form-control form-control-sm" id="f-sim-balance" min="0">
         </div>
+        <hr class="my-2">
+        <div style="font-size:.8rem;font-weight:600;margin-bottom:6px">S&amp;P 500 Historical Returns</div>
+        <div class="mb-2">
+          <label class="form-label">Historical Start Date</label>
+          <input type="month" class="form-control form-control-sm" id="f-snp-start">
+          <div class="form-text">Which historical month maps to the simulation start. Default: 40 years ago.</div>
+        </div>
       </div>
 
       <!-- INCOME -->
@@ -97,7 +104,7 @@
           <button class="btn btn-primary btn-sm" onclick="openModal('investments',-1)">+ Add</button>
         </div>
         <table class="table table-sm table-hover">
-          <thead class="table-light"><tr><th>Name</th><th>Contrib/mo</th><th>APR</th><th></th></tr></thead>
+          <thead class="table-light"><tr><th>Name</th><th>Contrib/mo</th><th>Return</th><th></th></tr></thead>
           <tbody id="tb-investments"></tbody>
         </table>
       </div>
@@ -186,6 +193,7 @@ const FIELDS = {
     { id:'name',                 label:'Name',                        type:'text',   req:true },
     { id:'initial_value',        label:'Current Value ($)',           type:'number', min:0 },
     { id:'monthly_contribution', label:'Monthly Contribution ($)',    type:'number', min:0 },
+    { id:'use_snp500',           label:'Use S&P 500 Historical Returns', type:'checkbox' },
     { id:'apr',                  label:'Annual Return (APR %)',       type:'number', step:0.1, min:0, pct:true },
     { id:'start',                label:'Start Date',                  type:'month' },
     { id:'end',                  label:'End Date',                    type:'month', hint:'Leave blank to continue indefinitely' },
@@ -231,6 +239,7 @@ function renderAll() {
   document.getElementById('f-sim-end').value     = sim.end     || '';
   document.getElementById('f-sim-balance').value = sim.initial_balance != null ? sim.initial_balance : '';
   document.getElementById('f-retire-date').value = (state.retirement || {}).date || '';
+  document.getElementById('f-snp-start').value   = (state.snp500 || {}).historical_start || '';
 
   renderTable('income',            ['name','amount','frequency']);
   renderTable('expenses',          ['name','amount','frequency']);
@@ -245,9 +254,15 @@ function renderTable(sec, cols) {
   tbody.innerHTML = list.length ? list.map((item, i) => {
     const cells = cols.map(c => {
       let v = item[c];
-      if (c === 'apr' || c === 'growth_rate')             v = v != null ? (v * 100).toFixed(1) + '%' : '-';
-      else if (c === 'amount' || c === 'monthly_contribution') v = v != null ? '$' + Number(v).toLocaleString() : '-';
-      else if (c === 'frequency')                          v = FREQ_SHORT[v] || v || '-';
+      if (c === 'apr') {
+        v = item.use_snp500 ? '<span class="badge bg-info text-dark">S&P 500</span>' : (v != null ? (v * 100).toFixed(1) + '%' : '-');
+      } else if (c === 'growth_rate') {
+        v = v != null ? (v * 100).toFixed(1) + '%' : '-';
+      } else if (c === 'amount' || c === 'monthly_contribution') {
+        v = v != null ? '$' + Number(v).toLocaleString() : '-';
+      } else if (c === 'frequency') {
+        v = FREQ_SHORT[v] || v || '-';
+      }
       return `<td>${v ?? '-'}</td>`;
     }).join('');
     return `<tr>${cells}
@@ -271,11 +286,13 @@ function openModal(sec, idx) {
     let val = item[f.id];
     let input;
     if (f.type === 'select') {
-      const defaultFreq = sec === 'investments' ? 'monthly' : 'monthly';
-      const sel = val || defaultFreq;
+      const sel = val || 'monthly';
       input = `<select class="form-select form-select-sm" id="mf-${f.id}">` +
         FREQ.map(o => `<option value="${o}"${sel === o ? ' selected' : ''}>${o}</option>`).join('') +
         `</select>`;
+    } else if (f.type === 'checkbox') {
+      const checked = val ? ' checked' : '';
+      input = `<div class="form-check"><input type="checkbox" class="form-check-input" id="mf-${f.id}"${checked}></div>`;
     } else {
       if (f.pct && val != null) val = (val * 100).toFixed(2);
       const attrs = [
@@ -290,8 +307,20 @@ function openModal(sec, idx) {
       input = `<input ${attrs}>`;
     }
     const hint = f.hint ? `<div class="form-text">${f.hint}</div>` : '';
-    return `<div class="mb-2"><label class="form-label">${f.label}</label>${input}${hint}</div>`;
+    const wrapId = f.id === 'apr' ? ' id="apr-row"' : '';
+    return `<div class="mb-2"${wrapId}><label class="form-label">${f.label}</label>${input}${hint}</div>`;
   }).join('');
+
+  // Toggle APR row based on use_snp500 checkbox (investments modal only)
+  const snpCb = document.getElementById('mf-use_snp500');
+  if (snpCb) {
+    const toggleApr = () => {
+      const aprRow = document.getElementById('apr-row');
+      if (aprRow) aprRow.style.display = snpCb.checked ? 'none' : '';
+    };
+    toggleApr();
+    snpCb.addEventListener('change', toggleApr);
+  }
 
   bsModal = bsModal || new bootstrap.Modal(document.getElementById('modal'));
   bsModal.show();
@@ -302,6 +331,10 @@ function saveModal() {
   for (const f of FIELDS[curSection]) {
     const el = document.getElementById('mf-' + f.id);
     if (!el) continue;
+    if (f.type === 'checkbox') {
+      if (el.checked) item[f.id] = true;
+      continue;
+    }
     let val = el.value.trim();
     if (!val) continue;
     if (f.type === 'number') {
@@ -331,6 +364,12 @@ function syncFormToState() {
   state.simulation.initial_balance = parseFloat(document.getElementById('f-sim-balance').value) || 0;
   state.retirement = state.retirement || {};
   state.retirement.date            = document.getElementById('f-retire-date').value || undefined;
+  const snpStart = document.getElementById('f-snp-start').value;
+  if (snpStart) {
+    state.snp500 = { historical_start: snpStart };
+  } else {
+    delete state.snp500;
+  }
 }
 
 // ── Simulate ───────────────────────────────────────────────────────────────
@@ -404,11 +443,13 @@ function importYaml(event) {
       const cfg = jsyaml.load(e.target.result);
       state = {
         simulation:  cfg.simulation  || {},
+        snp500:      cfg.snp500      || undefined,
         income:      cfg.income      || [],
         expenses:    cfg.expenses    || [],
         investments: cfg.investments || [],
         retirement:  cfg.retirement  || {},
       };
+      if (!state.snp500) delete state.snp500;
       if (!state.retirement.income) state.retirement.income = [];
       saveConfig();
       renderAll();
@@ -430,11 +471,13 @@ async function init() {
       const cfg = JSON.parse(stored);
       state = {
         simulation:  cfg.simulation  || {},
+        snp500:      cfg.snp500      || undefined,
         income:      cfg.income      || [],
         expenses:    cfg.expenses    || [],
         investments: cfg.investments || [],
         retirement:  cfg.retirement  || {},
       };
+      if (!state.snp500) delete state.snp500;
       if (!state.retirement.income) state.retirement.income = [];
       renderAll();
       runSimulation();
@@ -447,11 +490,13 @@ async function init() {
   const cfg = await res.json();
   state = {
     simulation:  cfg.simulation  || {},
+    snp500:      cfg.snp500      || undefined,
     income:      cfg.income      || [],
     expenses:    cfg.expenses    || [],
     investments: cfg.investments || [],
     retirement:  cfg.retirement  || {},
   };
+  if (!state.snp500) delete state.snp500;
   if (!state.retirement.income) state.retirement.income = [];
   renderAll();
   runSimulation();

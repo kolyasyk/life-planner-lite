@@ -288,6 +288,58 @@ def test_simulate_investment_inactive_no_contribution():
     assert balances[0] == pytest.approx(0.0)        # nothing deducted from cash
 
 
+def test_simulate_snp500_explicit_historical_start():
+    # use_snp500=True: returns come from build_returns_sequence, not apr
+    fixed_return = 0.01  # 1% per month
+    config = {
+        "simulation": {"start": "2026-01", "end": "2026-02"},
+        "snp500": {"historical_start": "2000-01"},
+        "investments": [{"initial_value": 1000, "monthly_contribution": 0, "use_snp500": True}],
+    }
+    with patch("snp500.build_returns_sequence", return_value=[fixed_return, fixed_return]) as mock_brs, \
+         patch("snp500.default_historical_start", return_value="2000-01"):
+        _, _, inv_totals, *_ = simulate(config)
+
+    mock_brs.assert_called_once_with("2000-01", 2)
+    assert inv_totals[0] == pytest.approx(1000 * (1 + fixed_return))
+    assert inv_totals[1] == pytest.approx(1000 * (1 + fixed_return) ** 2)
+
+
+def test_simulate_snp500_default_historical_start():
+    # When snp500 section is absent, default_historical_start() is used
+    fixed_return = 0.02
+    config = {
+        "simulation": {"start": "2026-01", "end": "2026-01"},
+        "investments": [{"initial_value": 500, "monthly_contribution": 0, "use_snp500": True}],
+    }
+    with patch("snp500.build_returns_sequence", return_value=[fixed_return]) as mock_brs, \
+         patch("snp500.default_historical_start", return_value="1986-01") as mock_dhs:
+        _, _, inv_totals, *_ = simulate(config)
+
+    mock_dhs.assert_called_once()
+    mock_brs.assert_called_once_with("1986-01", 1)
+    assert inv_totals[0] == pytest.approx(500 * (1 + fixed_return))
+
+
+def test_simulate_mixed_snp500_and_apr():
+    # One investment uses S&P 500, another uses fixed APR
+    snp_return = 0.03
+    config = {
+        "simulation": {"start": "2026-01", "end": "2026-01"},
+        "investments": [
+            {"initial_value": 1000, "monthly_contribution": 0, "use_snp500": True},
+            {"initial_value": 1000, "monthly_contribution": 0, "apr": 0.12},
+        ],
+    }
+    with patch("snp500.build_returns_sequence", return_value=[snp_return]), \
+         patch("snp500.default_historical_start", return_value="1986-01"):
+        _, _, inv_totals, *_ = simulate(config)
+
+    expected_snp = 1000 * (1 + snp_return)
+    expected_apr = 1000 * (1 + 0.12) ** (1 / 12)
+    assert inv_totals[0] == pytest.approx(expected_snp + expected_apr)
+
+
 # ── plot ──────────────────────────────────────────────────────────────────
 
 def _plot_args():
