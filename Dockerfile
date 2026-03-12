@@ -12,6 +12,7 @@ RUN uv sync --frozen --no-dev
 COPY src/ src/
 COPY config.yaml ./
 COPY static/ static/
+COPY data/ data/
 
 ENV PYTHONPATH=/app/src
 EXPOSE 8080
